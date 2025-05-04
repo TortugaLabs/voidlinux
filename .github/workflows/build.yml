@@ -8,8 +8,9 @@ on:
     tags: [ "*" ]
   pull_request:
     branches: [ "main" ]
-  #~ schedule:
-  #~ - cron: "0 2 1,10,15,20,25,30 * *"
+  schedule:
+  # Run every 8th of the month
+  - cron: "0 2 8 * *"
 
 env:
   REGISTRY: ghcr.io
@@ -43,29 +44,23 @@ jobs:
       id: meta
       uses: docker/metadata-action@v5
       with:
-        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-${{ matrix.libc }}
-    - name: Add additional ids
-      id: myids
-      run: |
-        (
-          echo IMAGE_NAME="$(echo '${{ env.IMAGE_NAME }}' | tr A-Z a-z)"
-          echo DATE=$(date +'%Y%m%d')
-        ) >> $GITHUB_OUTPUT
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_BASE }}-${{ matrix.libc }}
+        tags: |
+          type=raw,value=latest,enable={{ is_default_branch }}
+          type=raw,value={{date 'YYYYMMDD'}}
     - name: Build and push Docker image
       id: push
       uses: docker/build-push-action@v3
       with:
         context: .
         push: true
-        tags: |
-          ${{ steps.meta.outputs.tags }}
-          ${{ env.REGISTRY }}/${{ steps.myids.outputs.IMAGE_NAME }}:${{ steps.myids.outputs.DATE }}
+        tags: ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}
         build-args: |
           LIBC=${{ matrix.libc }}
     - name: Generate artifact attestation
       uses: actions/attest-build-provenance@v2
       with:
-        subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME}}
+        subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_BASE}}-${{ matrix.libc }}
         subject-digest: ${{ steps.push.outputs.digest }}
         push-to-registry: true
